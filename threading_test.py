@@ -18,7 +18,7 @@ class TerminationController:
 class MessageQueue:
     def __init__(self, use_locks: bool) -> None:
         self.message_queue: deque[int] = deque()
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
         self.use_locks = use_locks
 
     @contextmanager
@@ -39,15 +39,9 @@ class MessageQueue:
         with self._lock:
             yield None if not self.message_queue else self.message_queue.popleft()
     """
-            
-    def _add_item(self, item: int) -> None:
-        self.message_queue.append(item)
 
     def add_item(self, item: int) -> None:
-        if not self.use_locks:
-            return self._add_item(item)
-        with self._lock:
-            self._add_item(item)
+        self.message_queue.append(item)
 
 
 def producer(queue: MessageQueue, termination_controller: TerminationController) -> None:
@@ -70,7 +64,7 @@ def consumer(queue: MessageQueue, termination_controller: TerminationController,
             try:
                 item = queue.next_item()
             except Exception as exception:
-                print(f"{processing_time=} found an empty queue, after another thread emptied it, raising {exception=}")
+                print(f"{processing_time=} found an empty queue, after another thread emptied it, which raised {exception=}")
             else:
                 print(f"{processing_time=} Processed: {item} -> {item**2}")
 
