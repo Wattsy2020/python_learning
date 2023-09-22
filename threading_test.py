@@ -34,10 +34,24 @@ class MessageQueue:
     # (i.e. expand_capacity needs to also acquire read lock, and shrink capacity the write lock)
     # as reads and writes are both affected by changing self._read_pos and self._append_pos
 
+    @property
+    def _all_items(self) -> list[int | None]:
+        return self._message_queue[self._read_pos:self._append_pos]
+
+    def _shrink_capacity(self) -> None:
+        with self._write_lock:
+            self._capacity //= 2
+            new_message_queue: list[int | None] = [None] * self._capacity
+            new_message_queue[:len(self)] = self._all_items
+            self._message_queue = new_message_queue
+            self._read_pos, self._append_pos = 0, len(self)
+
     def _popleft(self) -> int:
-        """Pop item from the queue. TODO: if queue size (diff between read_pos and append_pos) == floor(half capacity), then shrink the queue to save space"""
+        """Pop item from the queue, if the queue is mostly empty then shrink it to save space"""
         if self._read_pos == self._append_pos:
-            raise IndexError(f"The queue is empty as {self._read_pos=} == {self._append_pos}")
+            raise IndexError(f"The queue is empty as {self._read_pos=} and {self._append_pos=} are the same")
+        if self._capacity > 8 and len(self) <= self._capacity // 2:
+            self._shrink_capacity()
         result = self._message_queue[self._read_pos]
         assert result is not None
         self._read_pos += 1
@@ -48,9 +62,9 @@ class MessageQueue:
         with self._read_lock:
             self._capacity *= 2
             new_message_queue: list[int | None] = [None] * self._capacity
-            new_message_queue[:len(self)] = self._message_queue[self._read_pos:self._append_pos]
-            self._read_pos = 0
-            self._append_pos = len(self)
+            new_message_queue[:len(self)] = self._all_items
+            self._message_queue = new_message_queue
+            self._read_pos, self._append_pos = 0, len(self)
 
     def _append(self, item: int) -> None:
         """Add item, expand the capacity if the maximum capacity is reached"""
