@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -119,14 +120,15 @@ def consumer(queue: MessageQueue, termination_controller: TerminationController,
             if not has_item:
                 continue
 
-            print(f"{processing_time=} verified queue has an item, now waiting")
-            time.sleep(processing_time) # processing, potentially another thread can interefere and cause a race condition
+            log.info("%s verified queue has an item, now waiting", processing_time)
+            if processing_time != 0:
+                time.sleep(processing_time) # processing, potentially another thread can interefere and cause a race condition
             try:
                 item = queue.next_item()
             except Exception as exception:
-                print(f"{processing_time=} found an empty queue, after another thread emptied it, which raised {exception=}")
+                log.error("%s found an empty queue, after another thread emptied it, which raised Exception=%s", processing_time, exception)
             else:
-                print(f"{processing_time=} Processed: {item} -> {item**2}")
+                log.info("%s Processed: %s", processing_time, item)
                 result.append(item)
 
 
@@ -155,5 +157,44 @@ def test_race_conditions(start_val1: int, start_val2: int) -> None:
             assert False, f"{num=} not equal to either start values: {start_val1}, {start_val2}"
 
 
+def fixed_producer(queue: MessageQueue, messages: list[int]) -> None:
+    for message in messages:
+        queue.add_item(message)
+
+
+def stress_test(messages1: list[int], messages2: list[int], test_time_seconds: float = 5) -> list[int]:
+    """Produce and consume as fast as possible to try to force race conditions"""
+    message_queue = MessageQueue(use_locks=True)
+    termination_controller = TerminationController(test_time_seconds)
+    result: list[int] = []
+    with ThreadPoolExecutor() as executor:
+        executor.submit(fixed_producer, message_queue, messages1)
+        executor.submit(fixed_producer, message_queue, messages2)
+        executor.submit(consumer, message_queue, termination_controller, result, 0)
+        executor.submit(consumer, message_queue, termination_controller, result, 0)
+    return result
+
+
+@given(st.integers(), st.integers())
+def test_race_conditions_stress(start_val1: int, start_val2: int) -> None:
+    """Enforce that the messages are consumed sequentially while stress testing"""
+    messages1 = list(range(start_val1, start_val1 + 10000))
+    messages2 = list(range(start_val2, start_val2 + 10000))
+    result = stress_test(messages1, messages2, 0.001)
+    for num in result:
+        if num == start_val1:
+            start_val1 += 1
+        elif num == start_val2:
+            start_val2 += 1
+        else:
+            assert False, f"{num=} not equal to either start values: {start_val1}, {start_val2}"
+
+
 if __name__ == "__main__":
+    # set to logging.WARNING for stress testing, to speed up the consumers
+    # by removing the logging time
+    log = logging.getLogger(name="threading_test")
+    logging.basicConfig(level=logging.WARNING)
+
     run_experiment()
+    stress_test(list(range(1, 1_000_000)), list(range(1_000_000, 2_000_000)))
