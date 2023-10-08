@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any, Callable, Generic, Iterator, Protocol, TypeVar
 
 T = TypeVar("T", covariant=True)
+
+
 class ContextManager(Protocol, Generic[T]):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         ...
@@ -24,16 +26,22 @@ def context_manager(func: Callable[..., Iterator[T]]) -> type[ContextManager[T]]
             try:
                 value = next(self.iterator)
             except StopIteration:
-                raise ValueError("Iterator must yield one object, but didn't yield anything")
+                raise ValueError(
+                    "Iterator must yield one object, but didn't yield anything"
+                )
             return value
 
         def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
             try:
-                next(self.iterator) # run the cleanup code by going through the rest of the function
+                next(
+                    self.iterator
+                )  # run the cleanup code by going through the rest of the function
             except StopIteration:
-                pass # expected that there is no next item
+                pass  # expected that there is no next item
             else:
-                raise ValueError("Iterator must yield only one object, yielded multiple")
+                raise ValueError(
+                    "Iterator must yield only one object, yielded multiple"
+                )
 
     return ContextManagerWrapper
 
@@ -50,7 +58,9 @@ def temporary_directory(name: str) -> Iterator[Path]:
     """Create a temporary directory that can be manipulated, then deleted when the context manager exits"""
     dirpath = Path(name).absolute()
     if dirpath.exists():
-        raise ValueError(f"Path {dirpath=} already exists, cannot create temporary directory")
+        raise ValueError(
+            f"Path {dirpath=} already exists, cannot create temporary directory"
+        )
     dirs_to_create = [path for path in reversed(dirpath.parents) if not path.exists()]
     for dir_ in dirs_to_create:
         dir_.mkdir()
@@ -66,7 +76,6 @@ def temporary_directory(name: str) -> Iterator[Path]:
 def main() -> None:
     with basic_context() as result:
         print(f"{result=} should be 1")
-
 
     with temporary_directory("temp/dir") as dirpath:
         file = dirpath / "hello.txt"

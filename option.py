@@ -5,7 +5,7 @@ from typing import Any, Callable, Generic, TypeAlias, TypeVar
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
-Option: TypeAlias = 'Some[T] | Empty[T]'
+Option: TypeAlias = "Some[T] | Empty[T]"
 
 
 class Optional(ABC, Generic[T]):
@@ -15,11 +15,11 @@ class Optional(ABC, Generic[T]):
     @abstractmethod
     def __repr__(self) -> str:
         ...
-    
+
     @abstractmethod
     def __bool__(self) -> bool:
         ...
-    
+
     @abstractmethod
     def __or__(self, other: Callable[[T], T1]) -> Option[T1]:
         ...
@@ -37,13 +37,15 @@ class Some(Optional[T]):
 
     def __repr__(self) -> str:
         return f"Some({self.value})"
-    
+
     def __bool__(self) -> bool:
         return True
 
     def __or__(self, other: Callable[[T], T1]) -> Some[T1]:
         if not callable(other):
-            raise NotImplementedError(f"| operator is only defined for callables, not {other=}")
+            raise NotImplementedError(
+                f"| operator is only defined for callables, not {other=}"
+            )
         return Some[T1](other(self.value))
 
 
@@ -54,13 +56,15 @@ class Empty(Optional[T]):
 
     def __repr__(self) -> str:
         return "Empty"
-    
+
     def __bool__(self) -> bool:
         return False
-    
+
     def __or__(self, other: Callable[[T], T1]) -> Empty[T1]:
         if not callable(other):
-            raise NotImplementedError(f"| operator is only defined for callables, not {other=}")
+            raise NotImplementedError(
+                f"| operator is only defined for callables, not {other=}"
+            )
         return Empty[T1]()
 
 
@@ -93,17 +97,17 @@ def main() -> None:
 
     for opt in opts:
         print(f"{opt=} {bool(opt)=}")
-    
+
     def range_f(x: int) -> list[int]:
         return list(range(x))
-    
+
     def sum_typed(x: list[int]) -> int:
         return sum(x)
 
     for opt in opts:
         result = opt | range_f | sum_typed
         print(result)
- 
+
 
 if __name__ == "__main__":
     main()

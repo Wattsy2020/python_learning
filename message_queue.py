@@ -9,6 +9,8 @@ from random import randrange
 from typing import Generic, TypeVar
 
 T = TypeVar("T")
+
+
 class MessageQueue(Generic[T]):
     def __init__(self, capacity: int = 64) -> None:
         self._capacity = capacity
@@ -23,7 +25,7 @@ class MessageQueue(Generic[T]):
     def put(self, item: T) -> None:
         """Put the item into the queue, block if the queue is full"""
         with self._not_full:
-            # note: get could be called twice, 
+            # note: get could be called twice,
             # notifying 1 thread to do two puts, then notifying another thread to also do a put
             # resulting in 3 items being added to a queue that only had capacity for 2
             # see https://stackoverflow.com/a/7909803
@@ -41,7 +43,7 @@ class MessageQueue(Generic[T]):
             result = self._queue.popleft()
             self._not_full.notify()
             return result
-        
+
     def task_done(self) -> None:
         with self._all_tasks_done:
             self._unfinished_tasks -= 1

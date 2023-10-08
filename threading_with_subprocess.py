@@ -9,7 +9,7 @@ from threading import Thread
 
 
 def run_cpp_sleep() -> None:
-    subprocess.run('./sleep')
+    subprocess.run("./sleep")
 
 
 def main() -> None:
@@ -23,5 +23,5 @@ def main() -> None:
     print(f"Time taken={time.time() - start_time}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

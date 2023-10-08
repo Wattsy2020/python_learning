@@ -37,33 +37,35 @@ class MessageQueue:
 
     @property
     def _all_items(self) -> list[int | None]:
-        return self._message_queue[self._read_pos:self._append_pos]
+        return self._message_queue[self._read_pos : self._append_pos]
 
     def _shrink_capacity(self) -> None:
         with self._write_lock:
             self._capacity //= 2
             new_message_queue: list[int | None] = [None] * self._capacity
-            new_message_queue[:len(self)] = self._all_items
+            new_message_queue[: len(self)] = self._all_items
             self._message_queue = new_message_queue
             self._read_pos, self._append_pos = 0, len(self)
 
     def _popleft(self) -> int:
         """Pop item from the queue, if the queue is mostly empty then shrink it to save space"""
         if self._read_pos == self._append_pos:
-            raise IndexError(f"The queue is empty as {self._read_pos=} and {self._append_pos=} are the same")
+            raise IndexError(
+                f"The queue is empty as {self._read_pos=} and {self._append_pos=} are the same"
+            )
         if self._capacity > 8 and len(self) <= self._capacity // 2:
             self._shrink_capacity()
         result = self._message_queue[self._read_pos]
         assert result is not None
         self._read_pos += 1
         return result
-    
+
     def _expand_capacity(self) -> None:
         """Double the queue capacity, and remove deleted items"""
         with self._read_lock:
             self._capacity *= 2
             new_message_queue: list[int | None] = [None] * self._capacity
-            new_message_queue[:len(self)] = self._all_items
+            new_message_queue[: len(self)] = self._all_items
             self._message_queue = new_message_queue
             self._read_pos, self._append_pos = 0, len(self)
 
@@ -104,7 +106,12 @@ class MessageQueue:
         return len(self) > 0
 
 
-def producer(queue: MessageQueue, termination_controller: TerminationController, start_range: int, time_scale: float) -> None:
+def producer(
+    queue: MessageQueue,
+    termination_controller: TerminationController,
+    start_range: int,
+    time_scale: float,
+) -> None:
     """Produce some messages"""
     messages = iter(range(start_range, 100_000))
     while not termination_controller.should_terminate():
@@ -113,7 +120,12 @@ def producer(queue: MessageQueue, termination_controller: TerminationController,
         time.sleep(time_scale)
 
 
-def consumer(queue: MessageQueue, termination_controller: TerminationController, result: list[int], processing_time: float) -> None:
+def consumer(
+    queue: MessageQueue,
+    termination_controller: TerminationController,
+    result: list[int],
+    processing_time: float,
+) -> None:
     """Consume messages immediately"""
     while not termination_controller.should_terminate():
         with queue.check_has_item() as has_item:
@@ -122,25 +134,41 @@ def consumer(queue: MessageQueue, termination_controller: TerminationController,
 
             log.info("%s verified queue has an item, now waiting", processing_time)
             if processing_time != 0:
-                time.sleep(processing_time) # processing, potentially another thread can interefere and cause a race condition
+                time.sleep(
+                    processing_time
+                )  # processing, potentially another thread can interefere and cause a race condition
             try:
                 item = queue.next_item()
             except Exception as exception:
-                log.error("%s found an empty queue, after another thread emptied it, which raised Exception=%s", processing_time, exception)
+                log.error(
+                    "%s found an empty queue, after another thread emptied it, which raised Exception=%s",
+                    processing_time,
+                    exception,
+                )
             else:
                 log.info("%s Processed: %s", processing_time, item)
                 result.append(item)
 
 
-def run_experiment(start_val1: int = 10, start_val2: int = 1, time_scale: float = 1) -> list[int]:
+def run_experiment(
+    start_val1: int = 10, start_val2: int = 1, time_scale: float = 1
+) -> list[int]:
     message_queue = MessageQueue(use_locks=True)
     termination_controller = TerminationController(time_scale)
     result: list[int] = []
     with ThreadPoolExecutor() as executor:
-        executor.submit(producer, message_queue, termination_controller, start_val1, time_scale)
-        executor.submit(producer, message_queue, termination_controller, start_val2, time_scale)
-        executor.submit(consumer, message_queue, termination_controller, result, time_scale*0.01)
-        executor.submit(consumer, message_queue, termination_controller, result, time_scale*0.005)
+        executor.submit(
+            producer, message_queue, termination_controller, start_val1, time_scale
+        )
+        executor.submit(
+            producer, message_queue, termination_controller, start_val2, time_scale
+        )
+        executor.submit(
+            consumer, message_queue, termination_controller, result, time_scale * 0.01
+        )
+        executor.submit(
+            consumer, message_queue, termination_controller, result, time_scale * 0.005
+        )
     return result
 
 
@@ -154,7 +182,9 @@ def test_race_conditions(start_val1: int, start_val2: int) -> None:
         elif num == start_val2:
             start_val2 += 1
         else:
-            assert False, f"{num=} not equal to either start values: {start_val1}, {start_val2}"
+            assert (
+                False
+            ), f"{num=} not equal to either start values: {start_val1}, {start_val2}"
 
 
 def fixed_producer(queue: MessageQueue, messages: list[int]) -> None:
@@ -162,7 +192,9 @@ def fixed_producer(queue: MessageQueue, messages: list[int]) -> None:
         queue.add_item(message)
 
 
-def stress_test(messages1: list[int], messages2: list[int], test_time_seconds: float = 5) -> list[int]:
+def stress_test(
+    messages1: list[int], messages2: list[int], test_time_seconds: float = 5
+) -> list[int]:
     """Produce and consume as fast as possible to try to force race conditions"""
     message_queue = MessageQueue(use_locks=True)
     termination_controller = TerminationController(test_time_seconds)
@@ -187,7 +219,9 @@ def test_race_conditions_stress(start_val1: int, start_val2: int) -> None:
         elif num == start_val2:
             start_val2 += 1
         else:
-            assert False, f"{num=} not equal to either start values: {start_val1}, {start_val2}"
+            assert (
+                False
+            ), f"{num=} not equal to either start values: {start_val1}, {start_val2}"
 
 
 if __name__ == "__main__":
