@@ -21,7 +21,7 @@ class Optional(ABC, Generic[T]):
         ...
     
     @abstractmethod
-    def __or__(self, other: Callable[[T], T1] | Any) -> Option[T1]:
+    def __or__(self, other: Callable[[T], T1]) -> Option[T1]:
         ...
 
 
@@ -40,8 +40,8 @@ class Some(Optional[T]):
     
     def __bool__(self) -> bool:
         return True
-    
-    def __or__(self, other: Callable[[T], T1] | Any) -> Option[T1]:
+
+    def __or__(self, other: Callable[[T], T1]) -> Some[T1]:
         if not callable(other):
             raise NotImplementedError(f"| operator is only defined for callables, not {other=}")
         return Some[T1](other(self.value))
@@ -58,7 +58,7 @@ class Empty(Optional[T]):
     def __bool__(self) -> bool:
         return False
     
-    def __or__(self, other: Callable[[T], T1] | Any) -> Option[T1]:
+    def __or__(self, other: Callable[[T], T1]) -> Empty[T1]:
         if not callable(other):
             raise NotImplementedError(f"| operator is only defined for callables, not {other=}")
         return Empty[T1]()
@@ -96,9 +96,12 @@ def main() -> None:
     
     def range_f(x: int) -> list[int]:
         return list(range(x))
+    
+    def sum_typed(x: list[int]) -> int:
+        return sum(x)
 
     for opt in opts:
-        result = opt | range_f | sum
+        result = opt | range_f | sum_typed
         print(result)
  
 
