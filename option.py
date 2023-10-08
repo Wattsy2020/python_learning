@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Generic, TypeAlias, TypeVar
+from typing import Callable, Generic, TypeAlias, TypeVar, overload
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
@@ -21,8 +21,29 @@ class Optional(ABC, Generic[T]):
         ...
 
     @abstractmethod
-    def __or__(self, other: Callable[[T], T1]) -> Option[T1]:
+    def unwrap(self) -> T:
         ...
+
+    @abstractmethod
+    def or_else(self, other: T) -> T:
+        ...
+
+    @abstractmethod
+    def transform(self, f: Callable[[T], T1]) -> Option[T1]:
+        ...
+
+    @overload
+    def __or__(self, other: Callable[[T], T1]) -> Option[T1]:  # type: ignore[misc]
+        ...
+
+    @overload
+    def __or__(self, other: T) -> T:
+        ...
+
+    def __or__(self, other: T | Callable[[T], T1]) -> T | Option[T1]:  # type: ignore[misc]
+        if callable(other):
+            return self.transform(other)
+        return self.or_else(other)
 
 
 class Some(Optional[T]):
@@ -40,17 +61,19 @@ class Some(Optional[T]):
 
     def __bool__(self) -> bool:
         return True
+    
+    def unwrap(self) -> T:
+        return self.value
+    
+    def or_else(self, other: T) -> T:
+        return self.value
 
-    def __or__(self, other: Callable[[T], T1]) -> Some[T1]:
-        if not callable(other):
-            raise NotImplementedError(
-                f"| operator is only defined for callables, not {other=}"
-            )
-        return Some[T1](other(self.value))
+    def transform(self, f: Callable[[T], T1]) -> Option[T1]:
+        return Some(f(self.value))
 
 
 class Empty(Optional[T]):
-    def __init__(self, *value: Any) -> None:
+    def __init__(self, *value: T) -> None:
         if value:
             raise ValueError(f"Cannot assign the value {value} to an Empty object")
 
@@ -60,11 +83,13 @@ class Empty(Optional[T]):
     def __bool__(self) -> bool:
         return False
 
-    def __or__(self, other: Callable[[T], T1]) -> Empty[T1]:
-        if not callable(other):
-            raise NotImplementedError(
-                f"| operator is only defined for callables, not {other=}"
-            )
+    def unwrap(self) -> T:
+        raise ValueError("Empty object has no value to unwrap")
+    
+    def or_else(self, other: T) -> T:
+        return other
+
+    def transform(self, f: Callable[[T], T1]) -> Option[T1]:
         return Empty[T1]()
 
 
@@ -72,14 +97,6 @@ def make_option(*value: T) -> Option[T]:
     if not value:
         return Empty()
     return Some(value[0])
-
-
-def flatmap(option: Option[T], f: Callable[[T], T1]) -> Option[T1]:
-    match option:
-        case Some(value=value):
-            return Some(f(value))
-        case Empty():
-            return Empty()
 
 
 def main() -> None:
@@ -106,7 +123,9 @@ def main() -> None:
 
     for opt in opts:
         result = opt | range_f | sum_typed
-        print(result)
+        print(f"piped: {result}")
+        or_else_result = opt | 1000
+        print(f"or_else: {or_else_result}")
 
 
 if __name__ == "__main__":
