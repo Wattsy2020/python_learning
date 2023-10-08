@@ -1,31 +1,69 @@
 from __future__ import annotations
 
-from typing import Callable, Generic, TypeAlias, TypeVar
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Generic, TypeAlias, TypeVar
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
+Option: TypeAlias = 'Some[T] | Empty[T]'
 
 
-class Some(Generic[T]):
+class Optional(ABC, Generic[T]):
     def __init__(self, *value: T) -> None:
-        self.value = value[0]
+        pass
+
+    @abstractmethod
+    def __repr__(self) -> str:
+        ...
+    
+    @abstractmethod
+    def __bool__(self) -> bool:
+        ...
+    
+    @abstractmethod
+    def __or__(self, other: Callable[[T], T1] | Any) -> Option[T1]:
+        ...
+
+
+class Some(Optional[T]):
+    def __init__(self, *value: T) -> None:
+        try:
+            first, *remaining = value
+        except ValueError:
+            raise ValueError("A value must be provided to a Some object")
+        if remaining:
+            raise ValueError("Only one value should be provided to a Some object")
+        self.value = first
 
     def __repr__(self) -> str:
         return f"Some({self.value})"
     
     def __bool__(self) -> bool:
         return True
+    
+    def __or__(self, other: Callable[[T], T1] | Any) -> Option[T1]:
+        if not callable(other):
+            raise NotImplementedError(f"| operator is only defined for callables, not {other=}")
+        return Some[T1](other(self.value))
 
 
-class Empty():
+class Empty(Optional[T]):
+    def __init__(self, *value: Any) -> None:
+        if value:
+            raise ValueError(f"Cannot assign the value {value} to an Empty object")
+
     def __repr__(self) -> str:
         return "Empty"
     
     def __bool__(self) -> bool:
         return False
+    
+    def __or__(self, other: Callable[[T], T1] | Any) -> Option[T1]:
+        if not callable(other):
+            raise NotImplementedError(f"| operator is only defined for callables, not {other=}")
+        return Empty[T1]()
 
 
-Option: TypeAlias = Some[T] | Empty
 def make_option(*value: T) -> Option[T]:
     if not value:
         return Empty()
@@ -56,8 +94,12 @@ def main() -> None:
     for opt in opts:
         print(f"{opt=} {bool(opt)=}")
     
+    def range_f(x: int) -> list[int]:
+        return list(range(x))
+
     for opt in opts:
-        print(flatmap(opt, lambda x: list(range(x))))
+        result = opt | range_f | sum
+        print(result)
  
 
 if __name__ == "__main__":
