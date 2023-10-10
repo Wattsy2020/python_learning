@@ -1,7 +1,8 @@
 """Defines a Pipeline class that supports creating pipelines with functions"""
 from __future__ import annotations
 
-from typing import Callable, Generic, Iterable, TypeVar
+import collections
+from typing import Callable, Generic, Iterable, TypeVar, overload
 
 T = TypeVar("T")
 T1 = TypeVar("T1")
@@ -16,8 +17,19 @@ class Pipeline(Generic[T1, T2]):
     def __call__(self, arg: T1) -> T2:
         return self.f(arg)
 
+    @overload
+    def __ror__(self, other: Iterable[T1]) -> Iterable[T2]:  # type: ignore[misc]
+        ...
+
+    @overload
     def __ror__(self, other: T1) -> T2:
-        return self.f(other)
+        ...
+
+    def __ror__(self, other: Iterable[T1] | T1) -> Iterable[T2] | T2:
+        if isinstance(other, collections.abc.Iterable) and not isinstance(other, str):
+            return map(self.f, other)
+        else:
+            return self.f(other) # type: ignore[arg-type]
 
     def __or__(self, other: Callable[[T2], T3]) -> Pipeline[T1, T3]:
         return Pipeline(lambda x: other(self.f(x)))
@@ -66,6 +78,9 @@ def main() -> None:
     inputs2 = [-4, -2, -1, 0, 2, 3, 4]
     result3 = list(inputs2 | filters)
     print(result3)
+ 
+    for num in inputs2 | pipeline:
+        print(num)
 
 
 if __name__ == "__main__":
