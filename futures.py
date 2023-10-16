@@ -37,22 +37,21 @@ class Future(Generic[T]):
         with self._has_result:
             return self._result
         
+    def await_result(self) -> T:
+        """Wait for the result of the future"""
+        self.run()
+        with self._has_result:
+            while isinstance((result := self.result()), NoResultYet):
+                self._has_result.wait()
+        return result
+
     @classmethod
     def from_value(self, value: T) -> Future[T]:
         return Future(lambda: value)
     
     def transform(self, function: Callable[[T], R]) -> Future[R]:
         """Create a new future that computes the result of `function` applied to the result of this future"""
-        def run_function() -> R:
-            """Function that gets input from this future, then computes its output"""
-            self.run()
-            with self._has_result:
-                self._has_result.wait_for(lambda: self.result() is not NO_RESULT)
-                result = self.result()
-            assert not isinstance(result, NoResultYet)
-            return function(result)
-        
-        return Future(run_function)
+        return Future(lambda: function(self.await_result()))
     
     def __or__(self, function: Callable[[T], R]) -> Future[R]:
         return self.transform(function)
@@ -90,6 +89,12 @@ def test_chained_futures() -> None:
     assert future.result() == NO_RESULT
     time.sleep(1.1)
     assert future.result() == 16
+
+
+def test_await_result() -> None:
+    future = Future.from_value(2)| square | square
+    result = future.await_result()
+    assert result == 16
 
 
 def test_multiple_dependencies() -> None:
