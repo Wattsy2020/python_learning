@@ -25,11 +25,12 @@ class Future(Generic[T]):
                 self._result = result
                 self._has_result.notify_all()
 
-        self._function = set_result_func
+        self._thread = Thread(target=set_result_func)
 
     def run(self) -> None:
         """Start the future"""
-        Thread(target=self._function).start()
+        if not self._thread.is_alive():
+            self._thread.start()
 
     def result(self) -> T | NoResultYet:
         """Check if there is a result"""
@@ -106,3 +107,17 @@ def test_multiple_dependencies() -> None:
     time.sleep(0.5)
     assert result1.result() == 16
     assert result2.result() == 5
+
+
+def test_idempotent_run() -> None:
+    result = 0
+    def counter(_: int) -> int:
+        nonlocal result
+        result += 1
+        return result
+    
+    future = Future.from_value(2) | counter
+    future.run()
+    future.run()
+    time.sleep(0.001)
+    assert future.result() == 1
